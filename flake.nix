@@ -17,6 +17,7 @@
         ${system.x86_64-linux}.pihole = imageBaseInfo // {
           arch = "amd64";
           sha256 = "sha256-5FUtafW2YdTfOfA0ieiyJasMUYEGReOMQ4PGZ8e32hY=";
+          # name = # final image name can be set here
         };
 
         ${system.aarch64-linux}.pihole = imageBaseInfo // {
@@ -32,6 +33,8 @@
         inherit piholeImage;
         default = piholeImage;
       };
+
+      nixosModule = import ./modules/pihole-container.nix;
 
       devShells.default = let
         updatePiholeImageInfoScript = pkgs.writeShellScriptBin "update-pihole-image-info" ''
