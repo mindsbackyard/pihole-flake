@@ -1,5 +1,5 @@
 { piholeFlake }: { config, pkgs, lib, ... }: with lib; let
-  cfg = config.services.piholeRootlessContainer;
+  cfg = config.services.pihole;
 
   mkHostPortsOption = { service, publicDefaultPort }: {
     host-internal-port = mkOption {
@@ -30,7 +30,7 @@
 
 in {
   options = {
-    services.piholeRootlessContainer = {
+    services.pihole = {
       enable = mkEnableOption "PiHole as a rootless podman container";
 
       hostConfig = {
@@ -246,7 +246,7 @@ in {
           --rmi \
           docker-archive:${self.packages.piholeImage}
         '';
-        User = null;
+        User = admin;
       };
     };
   };
