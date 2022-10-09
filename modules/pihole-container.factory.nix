@@ -1,4 +1,6 @@
-{ config, pkgs, lib, ... }: with lib; let
+{ piholeFlake }: { config, pkgs, lib, ... }: with lib; let
+  cfg = config.services.piholeRootlessContainer;
+
   mkHostPortsOption = { service, publicDefaultPort }: {
     host-internal-port = mkOption {
       type = types.port;
@@ -235,6 +237,17 @@ in {
     };
   };
 
-  config = {
+  config = mkIf cfg.enable {
+    systemd.services."pihole-rootless-container" = {
+      serviceConfig = {
+        ExecStart = ''
+          ${pkgs.podman}/bin/podman run \
+          --rm \
+          --rmi \
+          docker-archive:${self.packages.piholeImage}
+        '';
+        User = null;
+      };
+    };
   };
 }

@@ -34,7 +34,7 @@
         default = piholeImage;
       };
 
-      nixosModule = import ./modules/pihole-container.nix;
+      nixosModules.default = import ./modules/pihole-container.factory.nix { piholeFlake = self; };
 
       devShells.default = let
         updatePiholeImageInfoScript = pkgs.writeShellScriptBin "update-pihole-image-info" ''
