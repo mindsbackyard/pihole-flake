@@ -1,8 +1,16 @@
-{ piholeFlake }: { config, pkgs, lib, ... }: with lib; let
+{ piholeFlake, util }: { config, pkgs, lib, ... }: with lib; with builtins; let
+  inherit (util) collectAttrFragments accessValueOfFragment;
+
   cfg = config.services.pihole;
+  systemTimeZone = config.time.timeZone;
+  defaultPiholeVolumesDir = "${config.users.users.${cfg.hostConfig.user}.home}/pihole-volumes";
+
+  mkContainerEnvOption = { envVar, ... }@optionAttrs:
+    (mkOption (removeAttrs optionAttrs [ "envVar" ]))
+    // { inherit envVar; };
 
   mkHostPortsOption = { service, publicDefaultPort }: {
-    host-internal-port = mkOption {
+    hostInternalPort = mkOption {
       type = types.port;
       description = ''
         The internal port on the host on which the ${service} port of the pihole container should be exposed.
@@ -11,16 +19,16 @@
       '';
     };
 
-    host-public-port = mkOption {
+    hostPublicPort = mkOption {
       type = types.port;
       description =
         "The public port on the host on which the ${service} port of the pihole container should be forwared to.";
       default = publicDefaultPort;
     };
 
-    forward-public-to-internal = mkOption {
+    forwardPublicToInternal = mkOption {
       type = types.bool;
-      descripton = ''
+      description = ''
         Enable port-forwarding between the public & the internal port of the host.
         This effectively makes pihole's ${service} port available on the network to which the host is connected to.
       '';
@@ -28,7 +36,7 @@
     };
   };
 
-in {
+in rec {
   options = {
     services.pihole = {
       enable = mkEnableOption "PiHole as a rootless podman container";
@@ -42,14 +50,21 @@ in {
           '';
         };
 
+        persistVolumes = mkOption {
+          type = types.bool;
+          description = "Whether to use podman volumes to persist pihole's ad-hoc configuration across restarts.";
+          default = false;
+        };
+
         volumesPath = mkOption {
-          type = types.path;
+          type = types.str;
           description = ''
             The path where the persistent data of the pihole container should be stored.
             The different used volumes are created automatically.
             Needs to be writable by the user running the pihole container.
           '';
-          example = /home/pihole-user/pihole-volumes;
+          default = defaultPiholeVolumesDir;
+          example = "/home/pihole-user/pihole-volumes";
         };
 
         dns = mkHostPortsOption {
@@ -70,44 +85,49 @@ in {
 
 
       piholeConfiguration = {
-        tz = mkOption {
+        tz = mkContainerEnvOption {
           type = types.str;
           description = "Set your timezone to make sure logs rotate at local midnight instead of at UTC midnight.";
-          default = config.time.timeZone;
+          default = systemTimeZone;
+          envVar = "TZ";
         };
 
         web = {
-          password = mkOption {
+          password = mkContainerEnvOption {
             type = with types; nullOr str;
             description = ''
               The password for the pihole admin interface.
               If not given a random password will be generated an can be retrieved from the service logs.
             '';
             default = null;
+            envVar = "WEBPASSWORD";
           };
 
-          # password-file
+          # TODO password-file
 
-          virtual-host = mkOption {
-            type = type.str;
+          virtualHost = mkContainerEnvOption {
+            type = types.str;
             description = "What your web server 'virtual host' is, accessing admin through this Hostname/IP allows you to make changes to the whitelist/blacklists in addition to the default 'http://pi.hole/admin/' address";
+            envVar = "VIRTUAL_HOST";
           };
 
-          layout = mkOption {
+          layout = mkContainerEnvOption {
             type = types.enum [ "boxed" "traditional" ];
             description = "Use boxed layout (helpful when working on large screens)";
             default = "boxed";
+            envVar = "WEBUIBOXEDLAYOUT";
           };
 
-          theme = mkOption {
+          theme = mkContainerEnvOption {
             type = types.enum [ "default-dark" "default-darker" "default-light" "default-auto" "lcars" ];
             description = "User interface theme to use.";
             default = "default-light";
+            envVar = "WEBTHEME";
           };
         };
 
         dns = {
-          upstreamServers = mkOption {
+          upstreamServers = mkContainerEnvOption {
             type = with types; nullOr (listOf str);
             description = ''
               Upstream DNS server(s) for Pi-hole to forward queries to.
@@ -118,120 +138,137 @@ in {
               Upstream DNS added via the web interface will be overwritten on container restart/recreation.
             '';
             default = null;
+            envVar = "PIHOLE_DNS_";
           };
 
-          dnssec = mkOption {
+          dnssec = mkContainerEnvOption {
             type = types.bool;
             description = "Enable DNSSEC support";
             default = false;
+            envVar = "DNSSEC";
           };
 
-          bogusPriv = mkOption {
+          bogusPriv = mkContainerEnvOption {
             type = types.bool;
             description = "Never forward reverse lookups for private ranges.";
             default = true;
+            envVar = "DNS_BOGUS_PRIV";
           };
 
-          fqdnRequired = mkOption {
+          fqdnRequired = mkContainerEnvOption {
             type = types.bool;
             description = "Never forward non-FQDNs.";
             default = true;
+            envVar = "DNS_FQDN_REQUIRED";
           };
         };
 
         revServer = {
-          enable = mkOption {
+          enable = mkContainerEnvOption {
             type = types.bool;
             description = "Enable DNS conditional forwarding for device name resolution.";
             default = false;
+            envVar = "REV_SERVER";
           };
 
-          domain = mkOption {
+          domain = mkContainerEnvOption {
             type = with types; nullOr str;
             description = "If conditional forwarding is enabled, set the domain of the local network router.";
             default = null;
+            envVar = "REV_SERVER_DOMAIN";
           };
 
-          target = mkOption {
+          target = mkContainerEnvOption {
             type = with types; nullOr str;
             description = "If conditional forwarding is enabled, set the IP of the local network router.";
             default = null;
+            envVar = "REV_SERVER_TARGET";
           };
 
-          cidr = mkOption {
+          cidr = mkContainerEnvOption {
             type = with types; nullOr str;
             description = "If conditional forwarding is enabled, set the reverse DNS zone (e.g. 192.168.0.0/24)";
             default = null;
+            envVar = "REV_SERVER_CIDR";
           };
         };
 
         dhcp = {
-          enable = mkOption {
+          enable = mkContainerEnvOption {
             type = types.bool;
             description = ''
               Enable DHCP server.
               Static DHCP leases can be configured with a custom /etc/dnsmasq.d/04-pihole-static-dhcp.conf
             '';
             default = false;
+            envVar = "DHCP_ACTIVE";
           };
 
-
-          start = mkOption {
+          start = mkContainerEnvOption {
             type = with types; nullOr str;
             description = "Start of the range of IP addresses to hand out by the DHCP server (mandatory if DHCP server is enabled).";
             default = null;
             example = "192.168.0.10";
+            envVar = "DHCP_START";
           };
 
-          end = mkOption {
+          end = mkContainerEnvOption {
             type = with types; nullOr str;
             description = "End of the range of IP addresses to hand out by the DHCP server (mandatory if DHCP server is enabled).";
             default = null;
             example = "192.168.0.20";
+            envVar = "DHCP_END";
           };
 
-          router = mkOption {
+          router = mkContainerEnvOption {
             type = with types; nullOr str;
             description = "Router (gateway) IP address sent by the DHCP server (mandatory if DHCP server is enabled).";
             default = null;
             example = "192.168.0.1";
+            envVar = "DHCP_ROUTER";
           };
 
-          leasetime = mkOption {
+          leasetime = mkContainerEnvOption {
             type = types.int;
             description = "DHCP lease time in hours.";
             default = 24;
+            envVar = "DHCP_LEASETIME";
           };
 
-          domain = mkOption {
+          domain = mkContainerEnvOption {
             type = types.str;
             description = "Domain name sent by the DHCP server.";
             default = "lan";
+            envVar = "PIHOLE_DOMAIN";
           };
 
-          ipv6 = mkOption {
+          ipv6 = mkContainerEnvOption {
             type = types.bool;
             description = "Enable DHCP server IPv6 support (SLAAC + RA).";
             default = false;
+            envVar = "DHCP_IPv6";
           };
 
-          rapid-commit = mkOption {
+          rapid-commit = mkContainerEnvOption {
             type = types.bool;
             description = "Enable DHCPv4 rapid commit (fast address assignment).";
             default = false;
+            envVar = "DHCP_rapid_commit";
           };
         };
 
-        queryLogging = mkOption {
+        queryLogging = mkContainerEnvOption {
           type = types.bool;
           description = "Enable query logging or not.";
           default = true;
+            envVar = "QUERY_LOGGING";
         };
 
-        temperatureUnit = mkOption {
+        temperatureUnit = mkContainerEnvOption {
           type = types.enum [ "c" "k" "f" ];
           description = "Set preferred temperature unit to c: Celsius, k: Kelvin, or f Fahrenheit units.";
           default = "c";
+          envVar = "TEMPERATUREUNIT";
         };
       };
     };
