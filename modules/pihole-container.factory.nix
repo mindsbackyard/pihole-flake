@@ -276,14 +276,52 @@ in rec {
 
   config = mkIf cfg.enable {
     systemd.services."pihole-rootless-container" = {
-      serviceConfig = {
-        ExecStart = ''
+      wantedBy = [ "multi-user.target" ];
+      after = [ "network-online.target" ];
+
+      serviceConfig = let
+      in {
+        ExecStartPre = mkIf cfg.hostConfig.persistVolumes [
+          "${pkgs.coreutils}/bin/mkdir -p ${cfg.hostConfig.volumesPath}/etc-pihole"
+          "${pkgs.coreutils}/bin/mkdir -p ${cfg.hostConfig.volumesPath}/etc-dnsmasq.d"
+        ];
+
+        ExecStart = let
+          containerEnvVars = let
+            envVarFragments = collectAttrFragments (value: isAttrs value && value ? "envVar") options.services.pihole.piholeConfiguration;
+          in filter
+            (envVar: envVar.value != null)
+            (map
+              (fragment: {
+                name = getAttr "envVar" (accessValueOfFragment options.services.pihole.piholeConfiguration fragment);
+                value = let
+                  _value = accessValueOfFragment cfg.piholeConfiguration fragment;
+                in if isBool _value then (if _value then "true" else "false") else _value;
+              })
+              envVarFragments
+            )
+          ;
+        in ''
           ${pkgs.podman}/bin/podman run \
-          --rm \
-          --rmi \
-          docker-archive:${self.packages.piholeImage}
+            --rm \
+            --rmi \
+            --name="pihole_${cfg.hostConfig.user}" \
+            ${
+              if cfg.hostConfig.persistVolumes then ''
+              -v ${cfg.hostConfig.volumesPath}/etc-pihole:/etc/pihole \
+              -v ${cfg.hostConfig.volumesPath}/etc-dnsmasq.d:/etc/dnsmasq.d \
+              '' else ""
+            } \
+            -p ${toString cfg.hostConfig.dns.hostInternalPort}:53/tcp -p ${toString cfg.hostConfig.dns.hostInternalPort}:53/udp \
+            -p ${toString cfg.hostConfig.web.hostInternalPort}:80/tcp \
+            ${
+              concatStringsSep " \\\n"
+                (map (envVar: "  -e '${envVar.name}=${toString envVar.value}'") containerEnvVars)
+            } \
+            docker-archive:${piholeFlake.packages.${pkgs.system}.piholeImage}
         '';
-        User = admin;
+        #TODO check that user can control podman & has subuidmap/subgidmap set
+        User = "${cfg.hostConfig.user}";
       };
     };
   };
