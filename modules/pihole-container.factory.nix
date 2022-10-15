@@ -1,5 +1,5 @@
 { piholeFlake, util }: { config, pkgs, lib, ... }: with lib; with builtins; let
-  inherit (util) collectAttrFragments accessValueOfFragment;
+  inherit (util) collectAttrFragments accessValueOfFragment toEnvValue;
 
   cfg = config.services.pihole;
   systemTimeZone = config.time.timeZone;
@@ -280,28 +280,27 @@ in rec {
       after = [ "network-online.target" ];
 
       serviceConfig = let
+        optPihole = options.services.pihole;
+
+        containerEnvVars = let
+          envVarFragments = collectAttrFragments (value: isAttrs value && value ? "envVar") opt.piholeConfiguration;
+        in filter
+          (envVar: envVar.value != null)
+          (map
+            (fragment: {
+              name = getAttr "envVar" (accessValueOfFragment opt.piholeConfiguration fragment);
+              value = toEnvValue (accessValueOfFragment cfg.piholeConfiguration fragment);
+            })
+            envVarFragments
+          )
+        ;
       in {
         ExecStartPre = mkIf cfg.hostConfig.persistVolumes [
           "${pkgs.coreutils}/bin/mkdir -p ${cfg.hostConfig.volumesPath}/etc-pihole"
           "${pkgs.coreutils}/bin/mkdir -p ${cfg.hostConfig.volumesPath}/etc-dnsmasq.d"
         ];
 
-        ExecStart = let
-          containerEnvVars = let
-            envVarFragments = collectAttrFragments (value: isAttrs value && value ? "envVar") options.services.pihole.piholeConfiguration;
-          in filter
-            (envVar: envVar.value != null)
-            (map
-              (fragment: {
-                name = getAttr "envVar" (accessValueOfFragment options.services.pihole.piholeConfiguration fragment);
-                value = let
-                  _value = accessValueOfFragment cfg.piholeConfiguration fragment;
-                in if isBool _value then (if _value then "true" else "false") else _value;
-              })
-              envVarFragments
-            )
-          ;
-        in ''
+        ExecStart = ''
           ${pkgs.podman}/bin/podman run \
             --rm \
             --rmi \
@@ -312,7 +311,8 @@ in rec {
               -v ${cfg.hostConfig.volumesPath}/etc-dnsmasq.d:/etc/dnsmasq.d \
               '' else ""
             } \
-            -p ${toString cfg.hostConfig.dns.hostInternalPort}:53/tcp -p ${toString cfg.hostConfig.dns.hostInternalPort}:53/udp \
+            -p ${toString cfg.hostConfig.dns.hostInternalPort}:53/tcp \
+            -p ${toString cfg.hostConfig.dns.hostInternalPort}:53/udp \
             -p ${toString cfg.hostConfig.web.hostInternalPort}:80/tcp \
             ${
               concatStringsSep " \\\n"
