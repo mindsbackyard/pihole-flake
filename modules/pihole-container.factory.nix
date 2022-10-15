@@ -279,8 +279,11 @@ in rec {
       wantedBy = [ "multi-user.target" ];
       after = [ "network-online.target" ];
 
+      # required to make `newuidmap` available to the systemd service (see https://github.com/NixOS/nixpkgs/issues/138423)
+      path = [ "/run/wrappers" ];
+
       serviceConfig = let
-        optPihole = options.services.pihole;
+        opt = options.services.pihole;
 
         containerEnvVars = let
           envVarFragments = collectAttrFragments (value: isAttrs value && value ? "envVar") opt.piholeConfiguration;
