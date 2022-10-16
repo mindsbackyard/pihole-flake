@@ -58,6 +58,14 @@ in rec {
           '';
         };
 
+        containerName = mkOption {
+          type = types.str;
+          description = ''
+            The name of the podman container in which pihole will be started.
+          '';
+          default = "pihole_${cfg.hostConfig.user}";
+        };
+
         persistVolumes = mkOption {
           type = types.bool;
           description = "Whether to use podman volumes to persist pihole's ad-hoc configuration across restarts.";
@@ -316,7 +324,7 @@ in rec {
           ${pkgs.podman}/bin/podman run \
             --rm \
             --rmi \
-            --name="pihole_${cfg.hostConfig.user}" \
+            --name="${cfg.hostConfig.containerName}" \
             ${
               if cfg.hostConfig.persistVolumes then ''
               -v ${cfg.hostConfig.volumesPath}/etc-pihole:/etc/pihole \
@@ -331,6 +339,9 @@ in rec {
                 (map (envVar: "  -e '${envVar.name}=${toString envVar.value}'") containerEnvVars)
             } \
             docker-archive:${piholeFlake.packages.${pkgs.system}.piholeImage}
+        '';
+        ExecStop = ''
+          ${pkgs.podman}/bin/podman stop ${cfg.hostConfig.containerName}
         '';
         #TODO check that user can control podman & has subuidmap/subgidmap set
         User = "${cfg.hostConfig.user}";
