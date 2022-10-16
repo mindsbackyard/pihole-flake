@@ -286,6 +286,7 @@ in rec {
     systemd.services."pihole-rootless-container" = {
       wantedBy = [ "multi-user.target" ];
       after = [ "network-online.target" ];
+      requires = [ "network-online.target" ];
 
       # required to make `newuidmap` available to the systemd service (see https://github.com/NixOS/nixpkgs/issues/138423)
       path = [ "/run/wrappers" ];
