@@ -17,13 +17,12 @@
       imageInfo = {
         ${system.x86_64-linux}.pihole = imageBaseInfo // {
           arch = "amd64";
-          sha256 = "sha256-5FUtafW2YdTfOfA0ieiyJasMUYEGReOMQ4PGZ8e32hY=";
-          # name = # final image name can be set here
+          sha256 = "sha256-ln5wM8DVxzEWqlEpzG+H7UVfsNfqYrfzv/2lKXaVXTI=";
         };
 
         ${system.aarch64-linux}.pihole = imageBaseInfo // {
           arch = "arm64";
-          sha256 = "sha256-1gizGShpYT1IM3OzomTrHzoLWBejhOWmcLs52YauGzc=";
+          sha256 = "sha256-OIZf61nuPn+dJQdnLe807T2fJUJ5fKQqr5K4/Vt3IC4=";
         };
       };
 
