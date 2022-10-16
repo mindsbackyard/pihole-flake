@@ -340,10 +340,7 @@ in rec {
             } \
             docker-archive:${piholeFlake.packages.${pkgs.system}.piholeImage}
         '';
-        ExecStop = ''
-          ${pkgs.podman}/bin/podman stop ${cfg.hostConfig.containerName}
-        '';
-        RestartSec = "5s";
+        ExecStopPost = "${pkgs.coreutils}/bin/sleep 30";
         #TODO check that user can control podman & has subuidmap/subgidmap set
         User = "${cfg.hostConfig.user}";
       };
