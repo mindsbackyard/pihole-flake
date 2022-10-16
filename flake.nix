@@ -55,6 +55,7 @@
 
         in pkgs.mkShell {
           packages = with pkgs; [
+            dig
             skopeo
             jq
             updatePiholeImageInfoScript
