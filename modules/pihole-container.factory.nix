@@ -343,6 +343,7 @@ in rec {
         ExecStop = ''
           ${pkgs.podman}/bin/podman stop ${cfg.hostConfig.containerName}
         '';
+        RestartSec = "5s";
         #TODO check that user can control podman & has subuidmap/subgidmap set
         User = "${cfg.hostConfig.user}";
       };
