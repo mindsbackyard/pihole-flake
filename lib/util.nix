@@ -20,5 +20,8 @@
     in _accessValueOfFragment attrs fragment
   ;
 
-  toEnvValue = value: if builtins.isBool value then (if value then "true" else "false") else value;
+  toEnvValue = value: with builtins;
+  if isBool value then (if value then "true" else "false")
+  else if isList value then "[${concatStringSep ";" value}]"
+  else value;
 }
