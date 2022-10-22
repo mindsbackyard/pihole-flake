@@ -2,6 +2,7 @@
   inherit (util) collectAttrFragments accessValueOfFragment toEnvValue;
 
   cfg = config.services.pihole;
+  hostUserCfg = config.users.users.${cfg.hostConfig.user};
   systemTimeZone = config.time.timeZone;
   defaultPiholeVolumesDir = "${config.users.users.${cfg.hostConfig.user}.home}/pihole-volumes";
 
@@ -56,6 +57,18 @@ in rec {
             The username of the user on the host which should run the pihole container.
             Needs to be able to run rootless podman.
           '';
+        };
+
+        enableLingeringForUser = mkOption {
+          type = with types; oneOf [ bool (enum [ "suppressWarning" ]) ];
+          description = ''
+            If true lingering (see `loginctl enable-linger`) is enabled for the host user running pihole.
+            This is necessary as otherwise starting the pihole container will fail if there is no active session for the host user.
+            If false a warning is printed during the build to remind you of the issue.
+
+            Set to "suppressWarning" if the issue is solved otherwise or does not apply.
+          '';
+          default = false;
         };
 
         containerName = mkOption {
@@ -292,10 +305,8 @@ in rec {
 
   config = mkIf cfg.enable {
 
-    assertions = let
-      hostUserCfg = config.users.users.${cfg.hostConfig.user};
-    in [
-      { assertion = hostUserCfg ? "subUidRanges" && hostUserCfg ? "subGidRanges";
+    assertions = [
+      { assertion = length hostUserCfg.subUidRanges > 0 && length hostUserCfg.subGidRanges > 0;
         message = ''
           The host user most have configured subUidRanges & subGidRanges as pihole is running in a rootless podman container.
         '';
