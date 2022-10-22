@@ -291,6 +291,17 @@ in rec {
   };
 
   config = mkIf cfg.enable {
+
+    assertions = let
+      hostUserCfg = config.users.users.${cfg.hostConfig.user};
+    in [
+      { assertion = hostUserCfg ? "subUidRanges" && hostUserCfg ? "subGidRanges";
+        message = ''
+          The host user most have configured subUidRanges & subGidRanges as pihole is running in a rootless podman container.
+        '';
+      }
+    ];
+
     systemd.services."pihole-rootless-container" = {
       wantedBy = [ "multi-user.target" ];
       after = [ "network-online.target" ];
