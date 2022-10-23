@@ -313,6 +313,13 @@ in rec {
       }
     ];
 
+    warnings = (optional (cfg.hostConfig.enableLingeringForUser == false) ''
+      If lingering is not enabled for the host user which is running the pihole container then he service might be stopped when no user session is active.
+
+      Set `hostConfig.enableLingeringForUser` to `true` to manage systemd's linger setting through the `linger-flake` dependency.
+      Set it to "suppressWarning" if you manage lingering in a different way.
+    '');
+
     systemd.services."pihole-rootless-container" = {
       wantedBy = [ "multi-user.target" ];
       after = [ "network-online.target" ];
