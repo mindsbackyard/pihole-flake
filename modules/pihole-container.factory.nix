@@ -347,6 +347,7 @@ in rec {
         ExecStartPre = mkIf cfg.hostConfig.persistVolumes [
           "${pkgs.coreutils}/bin/mkdir -p ${cfg.hostConfig.volumesPath}/etc-pihole"
           "${pkgs.coreutils}/bin/mkdir -p ${cfg.hostConfig.volumesPath}/etc-dnsmasq.d"
+          ''${pkgs.podman}/bin/podman rm --ignore "${cfg.hostConfig.containerName}"''
         ];
 
         ExecStart = ''
@@ -369,12 +370,12 @@ in rec {
             } \
             docker-archive:${piholeFlake.packages.${pkgs.system}.piholeImage}
         '';
-        #TODO check that user can control podman & has subuidmap/subgidmap set
+
         User = "${cfg.hostConfig.user}";
       };
 
       postStop = ''
-        while ${pkgs.podman}/bin/podman container exists ${cfg.hostConfig.containerName}; do
+        while ${pkgs.podman}/bin/podman container exists "${cfg.hostConfig.containerName}"; do
           ${pkgs.coreutils-full}/bin/sleep 2;
         done
       '';
