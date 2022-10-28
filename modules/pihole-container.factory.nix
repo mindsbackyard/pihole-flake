@@ -1,4 +1,4 @@
-{ piholeFlake, util }: { config, pkgs, lib, ... }: with lib; with builtins; let
+{ piholeFlake, lingerFlake, util }: { config, pkgs, lib, ... }: with lib; with builtins; let
   inherit (util) collectAttrFragments accessValueOfFragment toEnvValue;
 
   cfg = config.services.pihole;
@@ -319,6 +319,11 @@ in rec {
       Set `hostConfig.enableLingeringForUser` to `true` to manage systemd's linger setting through the `linger-flake` dependency.
       Set it to "suppressWarning" if you manage lingering in a different way.
     '');
+
+    services.linger = mkIf (cfg.hostConfig.enableLingeringForUser == true) {
+      enable = true;
+      users = [ cfg.hostConfig.user ];
+    };
 
     systemd.services."pihole-rootless-container" = {
       wantedBy = [ "multi-user.target" ];

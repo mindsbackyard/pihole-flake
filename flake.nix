@@ -5,9 +5,11 @@
     nixpkgs.url = "nixpkgs/nixpkgs-unstable";
 
     flake-utils.url = "github:numtide/flake-utils";
+
+    linger.url = "github:mindsbackyard/linger-flake";
   };
 
-  outputs = { self, nixpkgs, flake-utils }: with flake-utils.lib; eachSystem (with system; [ x86_64-linux aarch64-linux ]) (curSystem:
+  outputs = { self, nixpkgs, flake-utils, linger }: with flake-utils.lib; eachSystem (with system; [ x86_64-linux aarch64-linux ]) (curSystem:
     let
       util = import ./lib/util.nix;
       pkgs = nixpkgs.legacyPackages.${curSystem};
@@ -34,7 +36,11 @@
         default = piholeImage;
       };
 
-      nixosModules.default = (import ./modules/pihole-container.factory.nix) { piholeFlake = self; inherit util; };
+      nixosModules.default = (import ./modules/pihole-container.factory.nix) {
+        piholeFlake = self;
+        lingerFlake = linger;
+        inherit util;
+      };
 
       devShells.default = let
         updatePiholeImageInfoScript = pkgs.writeShellScriptBin "update-pihole-image-info" ''
