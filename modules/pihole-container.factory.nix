@@ -1,5 +1,5 @@
-{ piholeFlake, lingerFlake, util }: { config, pkgs, lib, ... }: with lib; with builtins; let
-  inherit (util) collectAttrFragments accessValueOfFragment toEnvValue;
+{ piholeFlake, lingerFlake }: { config, pkgs, lib, ... }: with lib; with builtins; let
+  inherit (import ../lib/util.nix) collectAttrFragments accessValueOfFragment toEnvValue;
 
   cfg = config.services.pihole;
   hostUserCfg = config.users.users.${cfg.hostConfig.user};

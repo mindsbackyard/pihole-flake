@@ -11,7 +11,6 @@
 
   outputs = { self, nixpkgs, flake-utils, linger }: with flake-utils.lib; eachSystem (with system; [ x86_64-linux aarch64-linux ]) (curSystem:
     let
-      util = import ./lib/util.nix;
       pkgs = nixpkgs.legacyPackages.${curSystem};
 
       imageName = "pihole/pihole";
@@ -39,7 +38,6 @@
       nixosModules.default = (import ./modules/pihole-container.factory.nix) {
         piholeFlake = self;
         lingerFlake = linger;
-        inherit util;
       };
 
       devShells.default = let
