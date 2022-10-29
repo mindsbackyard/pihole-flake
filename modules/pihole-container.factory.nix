@@ -1,49 +1,11 @@
 { piholeFlake, lingerFlake }: { config, pkgs, lib, ... }: with lib; with builtins; let
-  inherit (import ../lib/util.nix) collectAttrFragments accessValueOfFragment toEnvValue;
+  inherit (import ../lib/util.nix) extractContainerEnvVars;
+  inherit (import ../lib/options.nix lib) mkContainerEnvOption mkHostPortsOption;
 
   cfg = config.services.pihole;
   hostUserCfg = config.users.users.${cfg.hostConfig.user};
   systemTimeZone = config.time.timeZone;
   defaultPiholeVolumesDir = "${config.users.users.${cfg.hostConfig.user}.home}/pihole-volumes";
-
-  mkContainerEnvOption = { envVar, ... }@optionAttrs:
-    (mkOption (removeAttrs optionAttrs [ "envVar" ]))
-    // { inherit envVar; };
-
-  mkHostPortsOption = { service, publicDefaultPort }: {
-    hostInternalPort = mkOption {
-      type = types.port;
-      description = ''
-        The internal port on the host on which the ${service} port of the pihole container should be exposed.
-        Only needs to be specified if he container port should be exposed
-        or if the port-forwarding for this service is enabled.
-
-        As the pihole container is running rootless this cannot be a privileged port (<1024).
-      '';
-    };
-
-    hostPublicPort = mkOption {
-      type = types.port;
-      description = ''
-        The public port on the host on which the ${service} port of the pihole container should be forwared to.
-
-        This option can be used to together with the according `forwardPublicToInternal` to expose a pihole subservice on a privileged port,
-        e.g., if you want to expose the DNS service on port 53.
-      '';
-      default = publicDefaultPort;
-    };
-
-    forwardPublicToInternal = mkOption {
-      type = types.bool;
-      description = ''
-        Enable port-forwarding between the public & the internal port of the host.
-        This effectively makes pihole's ${service} port available on the network to which the host is connected to.
-
-        Use this option together with the according `hostPublicPort` to expose a pihole subservice on a privileged port.
-      '';
-      default = false;
-    };
-  };
 
 in rec {
   options = {
@@ -113,7 +75,7 @@ in rec {
       };
 
 
-      piholeConfiguration = {
+      piholeConfig = {
         tz = mkContainerEnvOption {
           type = types.str;
           description = "Set your timezone to make sure logs rotate at local midnight instead of at UTC midnight.";
@@ -334,20 +296,7 @@ in rec {
       path = [ "/run/wrappers" ];
 
       serviceConfig = let
-        opt = options.services.pihole;
-
-        containerEnvVars = let
-          envVarFragments = collectAttrFragments (value: isAttrs value && value ? "envVar") opt.piholeConfiguration;
-        in filter
-          (envVar: envVar.value != null)
-          (map
-            (fragment: {
-              name = getAttr "envVar" (accessValueOfFragment opt.piholeConfiguration fragment);
-              value = toEnvValue (accessValueOfFragment cfg.piholeConfiguration fragment);
-            })
-            envVarFragments
-          )
-        ;
+        containerEnvVars = extractContainerEnvVars options.services.pihole cfg;
       in {
         ExecStartPre = mkIf cfg.hostConfig.persistVolumes [
           "${pkgs.coreutils}/bin/mkdir -p ${cfg.hostConfig.volumesPath}/etc-pihole"
