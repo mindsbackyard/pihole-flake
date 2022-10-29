@@ -95,6 +95,17 @@ in rec {
           envVar = "TZ";
         };
 
+        interface = mkContainerEnvOption {
+          type = types.str;
+          description = ''
+            Set the interface of the pihole container on which it should respond to DNS requests.
+
+            Note: Configuring "Allow only local requests" is currently not supported by the pihole image at startup but can be done later through the web interface.
+          '';
+          default = "tap0";
+          envVar = "INTERFACE";
+        };
+
         web = {
           password = mkContainerEnvOption {
             type = with types; nullOr str;
