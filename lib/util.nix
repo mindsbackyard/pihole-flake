@@ -1,12 +1,14 @@
 with builtins; let
-  collectAttrFragments = predicate: attrs: let
+  collectAttrFragments = successPredicate: stopPredicate: attrs: let
     _collectAttrFragments = attrs:
       concatMap (key: _collectAttrFragmentsBelowKey key attrs.${key}) (attrNames attrs)
+
     ;
     _collectAttrFragmentsBelowKey = key: value:
-      if predicate value then [ [key] ]
+      if successPredicate value then [ [key] ]
+      else if stopPredicate value then [ ]
       else if isAttrs value then
-        map (fragment: [key] ++ fragment) (_collectAttrFragments value)
+        map (fragment: if length fragment > 0 then [key] ++ fragment else [ ]) (_collectAttrFragments value)
       else [ ]
     ;
     in _collectAttrFragments attrs
@@ -31,7 +33,10 @@ in {
     _opt = piholeOptionDeclarations;
     _cfg = piholeOptionDefinitions;
 
-    _envVarFragments = collectAttrFragments (value: isAttrs value && value ? "envVar") _opt.piholeConfig;
+    _envVarFragments = collectAttrFragments
+      (value: isAttrs value && value ? "envVar")
+      (value: isAttrs value && value._type or "" == "option")
+      _opt.piholeConfig;
     in filter
       (envVar: envVar.value != null)
       (map
@@ -41,5 +46,15 @@ in {
         })
         _envVarFragments
       )
+  ;
+
+  extractContainerFTLEnvVars = piholeOptionDefinitions: let
+    _ftl = piholeOptionDefinitions.piholeConfig.ftl;
+  in map
+    (name: {
+      name = "FTL_${name}";
+      value = _ftl.${name};
+    })
+    (attrNames _ftl)
   ;
 }

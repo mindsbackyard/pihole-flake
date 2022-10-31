@@ -1,5 +1,5 @@
 { piholeFlake, lingerFlake }: { config, pkgs, lib, ... }: with lib; with builtins; let
-  inherit (import ../lib/util.nix) extractContainerEnvVars;
+  inherit (import ../lib/util.nix) extractContainerEnvVars extractContainerFTLEnvVars;
   inherit (import ../lib/options.nix lib) mkContainerEnvOption mkHostPortsOption;
 
   cfg = config.services.pihole;
@@ -207,6 +207,18 @@ in rec {
           };
         };
 
+        ftl = mkOption {
+          type = with types; attrsOf str;
+          description = ''
+            Set any additional FTL option under this key.
+
+            You can find the different options in the pihole docs: https://docs.pi-hole.net/ftldns/configfile
+            The names should be exactly like in the pihole docs.
+          '';
+          example = { LOCAL_IPV4 = "192.168.0.100"; };
+          default = {};
+        };
+
         dhcp = {
           enable = mkContainerEnvOption {
             type = types.bool;
@@ -328,6 +340,7 @@ in rec {
 
       serviceConfig = let
         containerEnvVars = extractContainerEnvVars options.services.pihole cfg;
+        containerFTLEnvVars = extractContainerFTLEnvVars cfg;
       in {
         ExecStartPre = mkIf cfg.hostConfig.persistVolumes [
           "${pkgs.coreutils}/bin/mkdir -p ${cfg.hostConfig.volumesPath}/etc-pihole"
@@ -351,7 +364,7 @@ in rec {
             -p ${toString cfg.hostConfig.web.hostInternalPort}:80/tcp \
             ${
               concatStringsSep " \\\n"
-                (map (envVar: "  -e '${envVar.name}=${toString envVar.value}'") containerEnvVars)
+                (map (envVar: "  -e '${envVar.name}=${toString envVar.value}'") (containerEnvVars ++ containerFTLEnvVars))
             } \
             docker-archive:${piholeFlake.packages.${pkgs.system}.piholeImage}
         '';
