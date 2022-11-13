@@ -1,5 +1,5 @@
 {
-  description = "Pihole docker image & NixOS module for configuring a rootless pihole container (w/ port-forwarding)";
+  description = "A NixOS flake providing a Pi-hole container & NixOS module for running it in a (rootless) podman container.";
 
   inputs = {
     nixpkgs.url = "nixpkgs/nixpkgs-unstable";
@@ -16,7 +16,6 @@
     let
       pkgs = nixpkgs.legacyPackages.${curSystem};
 
-      imageName = "pihole/pihole";
       imageBaseInfo = import ./pihole-image-base-info.nix;
       imageInfo = {
         ${system.x86_64-linux}.pihole = imageBaseInfo // {
@@ -44,6 +43,7 @@
       };
 
       devShells.default = let
+        imageName = "pihole/pihole";
         updatePiholeImageInfoScript = pkgs.writeShellScriptBin "update-pihole-image-info" ''
           INSPECT_RESULT=`skopeo inspect "docker://${imageName}:latest"`
           IMAGE_DIGEST=`echo $INSPECT_RESULT | jq '.Digest'`
