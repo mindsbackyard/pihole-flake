@@ -1,6 +1,9 @@
 { piholeFlake, lingerFlake }: { config, pkgs, lib, ... }: with lib; with builtins; let
   inherit (import ../lib/util.nix) extractContainerEnvVars extractContainerFTLEnvVars;
-  inherit (import ../lib/options.nix lib) mkContainerEnvOption mkHostPortsOption;
+
+  mkContainerEnvOption = { envVar, ... }@optionAttrs:
+    (mkOption (removeAttrs optionAttrs [ "envVar" ]))
+    // { inherit envVar; };
 
   cfg = config.services.pihole;
   hostUserCfg = config.users.users.${cfg.hostConfig.user};
@@ -59,19 +62,40 @@ in rec {
           example = "/home/pihole-user/pihole-volumes";
         };
 
-        dns = mkHostPortsOption {
-          service = "DNS";
-          publicDefaultPort = 53;
+        dnsPort = mkOption {
+          type = with types; nullOr (either port str);
+          description = ''
+            THe port on which PiHole's DNS service shoud be exposed.
+            Either pass a port number as integer or a string in the format `ip:port` (see [Docker docs](https://docs.docker.com/engine/reference/run/#expose-incoming-ports) for details).
+
+            If this option is not specified the DNS service will not be exposed on the host.
+            Remember that if the container is running rootless exposing on a privileged port is not possible.
+          '';
+          default = null;
         };
 
-        dhcp = mkHostPortsOption {
-          service = "DHCP";
-          publicDefaultPort = 67;
+        dhcpPort = mkOption {
+          type = with types; nullOr (either port str);
+          description = ''
+            THe port on which PiHole's DHCP service shoud be exposed.
+            Either pass a port number as integer or a string in the format `ip:port` (see [Docker docs](https://docs.docker.com/engine/reference/run/#expose-incoming-ports) for details).
+
+            If this option is not specified the DHCP service will not be exposed on the host.
+            Remember that if the container is running rootless exposing on a privileged port is not possible.
+          '';
+          default = null;
         };
 
-        web = mkHostPortsOption {
-          service = "Web";
-          publicDefaultPort = 80;
+        webPort = mkOption {
+          type = with types; nullOr (either port str);
+          description = ''
+            THe port on which PiHole's web interface shoud be exposed.
+            Either pass a port number as integer or a string in the format `ip:port` (see [Docker docs](https://docs.docker.com/engine/reference/run/#expose-incoming-ports) for details).
+
+            If this option is not specified the web interface will not be exposed on the host.
+            Remember that if the container is running rootless exposing on a privileged port is not possible.
+          '';
+          default = null;
         };
 
         suppressTmpDirWarning = mkOption {
@@ -359,9 +383,22 @@ in rec {
               -v ${cfg.hostConfig.volumesPath}/etc-dnsmasq.d:/etc/dnsmasq.d \
               '' else ""
             } \
-            -p ${toString cfg.hostConfig.dns.hostInternalPort}:53/tcp \
-            -p ${toString cfg.hostConfig.dns.hostInternalPort}:53/udp \
-            -p ${toString cfg.hostConfig.web.hostInternalPort}:80/tcp \
+            ${
+              if !(isNull cfg.hostConfig.dnsPort) then ''
+              -p ${toString cfg.hostConfig.dnsPort}:53/tcp \
+              -p ${toString cfg.hostConfig.dnsPort}:53/udp \
+              '' else ""
+            } \
+            ${
+              if !(isNull cfg.hostConfig.dhcpPort) then ''
+              -p ${toString cfg.hostConfig.dhcpPort}:67/udp \
+              '' else ""
+            } \
+            ${
+              if !(isNull cfg.hostConfig.webPort) then ''
+              -p ${toString cfg.hostConfig.webPort}:80/tcp \
+              '' else ""
+            } \
             ${
               concatStringsSep " \\\n"
                 (map (envVar: "  -e '${envVar.name}=${toString envVar.value}'") (containerEnvVars ++ containerFTLEnvVars))
