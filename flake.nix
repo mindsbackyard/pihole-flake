@@ -16,17 +16,9 @@
     let
       pkgs = nixpkgs.legacyPackages.${curSystem};
 
-      imageBaseInfo = import ./pihole-image-base-info.nix;
       imageInfo = {
-        ${system.x86_64-linux}.pihole = imageBaseInfo // {
-          arch = "amd64";
-          sha256 = "sha256-ln5wM8DVxzEWqlEpzG+H7UVfsNfqYrfzv/2lKXaVXTI=";
-        };
-
-        ${system.aarch64-linux}.pihole = imageBaseInfo // {
-          arch = "arm64";
-          sha256 = "sha256-OIZf61nuPn+dJQdnLe807T2fJUJ5fKQqr5K4/Vt3IC4=";
-        };
+        ${system.x86_64-linux}.pihole = import ./pihole-image-info.amd64.nix;
+        ${system.aarch64-linux}.pihole = import ./pihole-image-info.arm64.nix;
       };
 
       piholeImage = pkgs.dockerTools.pullImage imageInfo.${curSystem}.pihole;
@@ -45,18 +37,35 @@
       devShells.default = let
         imageName = "pihole/pihole";
         updatePiholeImageInfoScript = pkgs.writeShellScriptBin "update-pihole-image-info" ''
+          while [[ $# -gt 0 ]]; do
+            case $1 in
+              --arch)
+                ARCH="$2"
+                if [[ ($ARCH != 'amd64') && ($ARCH != 'arm64') ]]; then
+                  echo '--arch must be either "amd64" or "arm64"'
+                  exit 1
+                fi
+                shift # past argument
+                shift # past value
+                ;;
+              *)
+                echo "Unknown option $1"
+                exit 1
+                ;;
+            esac
+          done
+
+          if [[ -z "$ARCH" ]]; then
+            echo 'You must provide the "--arch [amd64|arm64]" option to specify which Pi-hole image should be updated.'
+            exit 1
+          fi
+
           INSPECT_RESULT=`skopeo inspect "docker://${imageName}:latest"`
           IMAGE_DIGEST=`echo $INSPECT_RESULT | jq '.Digest'`
           LATEST_LABEL=`echo $INSPECT_RESULT | jq '.Labels."org.opencontainers.image.version"'`
 
-          cat >pihole-image-base-info.nix <<EOF
-          {
-            imageName = "${imageName}";
-            imageDigest = $IMAGE_DIGEST;
-            finalImageTag = $LATEST_LABEL;
-            os = "linux";
-          }
-          EOF
+          IMAGE_INFO=`nix-prefetch-docker --os linux --arch "$ARCH" --image-name '${imageName}' --image-digest "$IMAGE_DIGEST" --final-image-tag "$LATEST_LABEL"`
+          echo "$IMAGE_INFO" >"pihole-image-info.$ARCH.nix"
         '';
 
         in pkgs.mkShell {
@@ -64,10 +73,9 @@
             dig
             skopeo
             jq
+            nix-prefetch-docker
             updatePiholeImageInfoScript
           ];
-
-          inputsFrom = [ self.packages.${curSystem}.default ];
         };
     }
   );
