@@ -63,7 +63,7 @@ To update both architectures to the newest Pi-hole image version execute:
 nix develop
 update-pihole-image-info --arch amd64
 update-pihole-image-info --arch arm64
-``
+```
 
 The `update-pihole-image-info` command determines the newest image digest available, pre-fetches the images into the nix-store, and updates the respective `./pihole-image-info.ARCH.nix` files.
 
